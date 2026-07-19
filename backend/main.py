@@ -2,6 +2,7 @@ import json
 import sys
 from extractor import extract_text_from_pdf
 from parser_engine import parse_resume_text
+from db_operations import save_profile_to_db
 
 def process_resume(pdf_path: str):
     print(f"--- Processing {pdf_path} ---")
@@ -20,6 +21,10 @@ def process_resume(pdf_path: str):
     print("-" * 20)
     print(json.dumps(profile, indent=2))
     print("-" * 20)
+
+    print("5. Saving to Database...")
+    candidate_id = save_profile_to_db(profile)
+    print(f"Saved Candidate ID: {candidate_id}")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
