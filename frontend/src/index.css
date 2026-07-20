@@ -53,4 +53,29 @@
   --font-display: "Literata", serif;
   --font-body: "Nunito Sans", sans-serif;
   --font-label: "Nunito Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer utilities {
+    .scan-line {
+        animation: scanMove 4s linear infinite;
+    }
+    
+    @keyframes scanMove {
+        0% { top: -5%; }
+        100% { top: 105%; }
+    }
+
+    .highlight-text {
+        transition: all 0.2s ease;
+    }
+
+    .code-scroll {
+        animation: scrollUp 15s linear infinite;
+    }
+
+    @keyframes scrollUp {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-50%); }
+    }
 }
