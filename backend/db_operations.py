@@ -79,3 +79,33 @@ if __name__ == "__main__":
     import sys
     if "--init" in sys.argv:
         init_db()
+
+def create_job(db, title: str, description: str, experience_years: str, education_level: str, department: str, skills: list):
+    try:
+        job = models.Job(
+            title=title,
+            description=description,
+            experience_years=experience_years,
+            education_level=education_level,
+            department=department
+        )
+        db.add(job)
+        db.flush()
+
+        for skill in skills:
+            job_skill = models.JobSkill(job_id=job.id, skill_name=skill)
+            db.add(job_skill)
+
+        db.commit()
+        db.refresh(job)
+        return job
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def get_jobs(db):
+    return db.query(models.Job).all()
+
+def get_job_by_id(db, job_id: str):
+    return db.query(models.Job).filter(models.Job.id == job_id).first()
+

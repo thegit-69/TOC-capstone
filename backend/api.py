@@ -53,6 +53,35 @@ class CandidateDetailSchema(CandidateBaseSchema):
     experience: List[ExperienceSchema] = []
     skills: List[SkillSchema] = []
 
+class JobCreateSchema(BaseModel):
+    title: str
+    description: Optional[str] = None
+    experience_years: Optional[str] = None
+    education_level: Optional[str] = None
+    department: Optional[str] = None
+    skills: List[str]
+
+class JobSchema(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: Optional[str]
+    experience_years: Optional[str]
+    education_level: Optional[str]
+    department: Optional[str]
+    skills: List[str] = []
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class ScreenResultSchema(BaseModel):
+    candidate: CandidateBaseSchema
+    score: int
+    matched_skills: List[str]
+    missing_skills: List[str]
+    experience: str
+    education: str
+    reason: str
+
 app = FastAPI(title="CFG Resume Parser API")
 
 app.add_middleware(
@@ -62,6 +91,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from datetime import datetime
+from db_operations import save_profile_to_db, create_job, get_jobs, get_job_by_id
 
 @app.post("/upload")
 async def upload_resume(file: UploadFile = File(...)):
@@ -107,3 +139,121 @@ def get_candidate(candidate_id: uuid.UUID, db: Session = Depends(get_db)):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
+
+@app.post("/jobs", response_model=JobSchema)
+def add_job(job_in: JobCreateSchema, db: Session = Depends(get_db)):
+    job = create_job(
+        db=db,
+        title=job_in.title,
+        description=job_in.description,
+        experience_years=job_in.experience_years,
+        education_level=job_in.education_level,
+        department=job_in.department,
+        skills=job_in.skills
+    )
+    job_dict = {
+        "id": job.id,
+        "title": job.title,
+        "description": job.description,
+        "experience_years": job.experience_years,
+        "education_level": job.education_level,
+        "department": job.department,
+        "created_at": job.created_at,
+        "skills": [s.skill_name for s in job.skills]
+    }
+    return job_dict
+
+@app.get("/jobs", response_model=List[JobSchema])
+def list_jobs(db: Session = Depends(get_db)):
+    db_jobs = get_jobs(db)
+    result = []
+    for job in db_jobs:
+        result.append({
+            "id": job.id,
+            "title": job.title,
+            "description": job.description,
+            "experience_years": job.experience_years,
+            "education_level": job.education_level,
+            "department": job.department,
+            "created_at": job.created_at,
+            "skills": [s.skill_name for s in job.skills if s.skill_name]
+        })
+    return result
+
+def compute_education_score(candidate_edu, job_edu):
+    if not job_edu:
+        return 1.0
+    job_edu = job_edu.lower()
+    
+    # Simple heuristic
+    has_bachelors = any(e.degree and ('b.s' in e.degree.lower() or 'bachelor' in e.degree.lower() or 'b.a' in e.degree.lower() or 'b.tech' in e.degree.lower()) for e in candidate_edu)
+    has_masters = any(e.degree and ('m.s' in e.degree.lower() or 'master' in e.degree.lower() or 'mba' in e.degree.lower() or 'm.tech' in e.degree.lower()) for e in candidate_edu)
+    has_phd = any(e.degree and ('ph.d' in e.degree.lower() or 'phd' in e.degree.lower()) for e in candidate_edu)
+    
+    if 'phd' in job_edu and not has_phd: return 0.2
+    if ('master' in job_edu or 'm.tech' in job_edu) and not (has_masters or has_phd): return 0.5
+    if ('bachelor' in job_edu or 'b.tech' in job_edu) and not (has_bachelors or has_masters or has_phd): return 0.3
+    
+    return 1.0
+
+@app.get("/jobs/{job_id}/screen", response_model=List[ScreenResultSchema])
+def screen_candidates(job_id: str, db: Session = Depends(get_db)):
+    job = get_job_by_id(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job_skills_lower = {s.skill_name.lower(): s.skill_name for s in job.skills if s.skill_name}
+    job_skill_set = set(job_skills_lower.keys())
+    
+    candidates = db.query(models.Candidate).all()
+    results = []
+
+    for c in candidates:
+        cand_skills_lower = {s.skill_name.lower() for s in c.skills if s.skill_name}
+        
+        # Jaccard Similarity
+        if len(job_skill_set) == 0:
+            skill_score = 100.0
+            matched_skills = []
+            missing_skills = []
+        else:
+            intersection = job_skill_set.intersection(cand_skills_lower)
+            union = job_skill_set.union(cand_skills_lower)
+            # if union is 0 (both empty), we already handled job_skill_set == 0 above
+            jaccard = len(intersection) / len(union) if len(union) > 0 else 0
+            skill_score = jaccard * 100.0
+            
+            matched_skills = [job_skills_lower[k] for k in intersection]
+            missing_skills = [job_skills_lower[k] for k in (job_skill_set - cand_skills_lower)]
+
+        # Education
+        edu_multiplier = compute_education_score(c.education, job.education_level)
+        
+        final_score = int(skill_score * edu_multiplier)
+        
+        # Determine Reason
+        reasons = []
+        if edu_multiplier < 1.0:
+            reasons.append(f"Does not strongly meet education requirement ({job.education_level})")
+        if missing_skills:
+            reasons.append(f"Missing {len(missing_skills)} required skills (e.g. {missing_skills[0]})")
+            
+        reason = " | ".join(reasons) if reasons else "Strong match across skills and education."
+        
+        # Summarize experience
+        exp_summary = f"{len(c.experience)} roles listed"
+        edu_summary = c.education[0].degree if c.education and c.education[0].degree else "Unknown"
+
+        results.append(ScreenResultSchema(
+            candidate=c,
+            score=final_score,
+            matched_skills=matched_skills,
+            missing_skills=missing_skills,
+            experience=exp_summary,
+            education=edu_summary,
+            reason=reason
+        ))
+    
+    # Sort by score descending
+    results.sort(key=lambda x: x.score, reverse=True)
+    return results

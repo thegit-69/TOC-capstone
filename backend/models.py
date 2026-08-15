@@ -53,3 +53,26 @@ class Skill(Base):
     category = Column(String, nullable=True)
 
     candidate = relationship("Candidate", back_populates="skills")
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    experience_years = Column(String, nullable=True) # E.g., '2', '5', etc. String to allow ranges if needed, but we'll try to parse it.
+    education_level = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    skills = relationship("JobSkill", back_populates="job", cascade="all, delete-orphan")
+
+class JobSkill(Base):
+    __tablename__ = "job_skills"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id"))
+    skill_name = Column(String, nullable=False)
+
+    job = relationship("Job", back_populates="skills")
+

@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CandidateTable from './components/CandidateTable';
 import UploadView from './components/UploadView';
+import JobsView from './components/JobsView';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<CandidateTable />} />
             <Route path="/upload" element={<UploadView />} />
+            <Route path="/jobs" element={<JobsView />} />
           </Routes>
         </div>
       </div>
