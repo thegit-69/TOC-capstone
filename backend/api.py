@@ -1,6 +1,7 @@
 import os
 import shutil
 import uuid
+from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -124,10 +125,8 @@ def login(creds: LoginSchema, db: Session = Depends(get_db)):
     account = db.query(models.Account).filter(models.Account.username == creds.username).first()
     if not account or account.password_hash != get_password_hash(creds.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    
     return {"success": True, "username": account.username}
 
-from datetime import datetime
 from db_operations import save_profile_to_db, create_job, get_jobs, get_job_by_id
 
 @app.post("/upload")
