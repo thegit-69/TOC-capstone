@@ -13,6 +13,7 @@ class Candidate(Base):
     name = Column(String, nullable=True)
     email = Column(String, nullable=True)
     phone = Column(String, nullable=True)
+    status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

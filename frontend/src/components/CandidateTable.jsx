@@ -52,6 +52,59 @@ export default function CandidateTable() {
         fetchCandidates();
     }, [selectedJob]);
 
+    const handleDeleteCandidate = async (id) => {
+        if (!confirm("Are you sure you want to delete this candidate?")) return;
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/candidates/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                setCandidates(prev => prev.filter(c => (c.candidate ? c.candidate.id : c.id) !== id));
+                setSelectedCandidateResult(null);
+            } else {
+                alert("Failed to delete candidate.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error deleting candidate.");
+        }
+    };
+
+    const handleStatusUpdate = async (id, status) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/candidates/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            if (response.ok) {
+                setCandidates(prev => prev.map(item => {
+                    const c = item.candidate || item;
+                    if (c.id === id) {
+                        if (item.candidate) {
+                            return { ...item, candidate: { ...c, status } };
+                        }
+                        return { ...c, status };
+                    }
+                    return item;
+                }));
+                // Also update the currently viewed modal state if open
+                setSelectedCandidateResult(prev => {
+                    if (!prev) return prev;
+                    if (prev.candidate) {
+                        return { ...prev, candidate: { ...prev.candidate, status } };
+                    }
+                    return { ...prev, status };
+                });
+            } else {
+                alert("Failed to update status.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error updating status.");
+        }
+    };
+
     // Handle both un-screened and screened candidates gracefully
     const renderCandidateRow = (item) => {
         const isScreened = !!selectedJob;
@@ -65,6 +118,16 @@ export default function CandidateTable() {
                 <td className="px-6 py-4 whitespace-nowrap font-semibold">{c.name || 'Unknown'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-on-surface-variant text-sm">{c.email || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-on-surface-variant text-sm">{c.phone || 'N/A'}</td>
+                
+                <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
+                        c.status === 'accept' ? 'bg-primary-container text-primary' :
+                        c.status === 'reject' ? 'bg-error-container text-error' :
+                        'bg-surface-variant text-on-surface-variant'
+                    }`}>
+                        {c.status || 'pending'}
+                    </span>
+                </td>
                 
                 {isScreened && (
                     <td className="px-6 py-4 whitespace-nowrap font-bold">
@@ -121,6 +184,7 @@ export default function CandidateTable() {
                                         <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary">Candidate Name</th>
                                         <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary">Email</th>
                                         <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary">Phone</th>
+                                        <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary">Status</th>
                                         {selectedJob && <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary">Match Score</th>}
                                         <th className="px-6 py-4 text-sm font-headline font-semibold text-secondary text-right">Action</th>
                                     </tr>
@@ -128,13 +192,13 @@ export default function CandidateTable() {
                                 <tbody className="divide-y divide-outline-variant/20 text-on-surface bg-surface">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={selectedJob ? 5 : 4} className="px-6 py-8 text-center text-on-surface-variant">
+                                            <td colSpan={selectedJob ? 6 : 5} className="px-6 py-8 text-center text-on-surface-variant">
                                                 Loading candidates...
                                             </td>
                                         </tr>
                                     ) : candidates.length === 0 ? (
                                         <tr>
-                                            <td colSpan={selectedJob ? 5 : 4} className="px-6 py-8 text-center text-on-surface-variant">
+                                            <td colSpan={selectedJob ? 6 : 5} className="px-6 py-8 text-center text-on-surface-variant">
                                                 No candidates found. Upload a resume to get started!
                                             </td>
                                         </tr>
@@ -159,80 +223,127 @@ export default function CandidateTable() {
                 </div>
             </div>
 
-            {/* Explainable AI Side Panel */}
+            {/* Explainable AI Modal */}
             {selectedCandidateResult && (
-                <div className="w-96 bg-surface-container-low border-l border-outline-variant/30 shadow-2xl flex flex-col h-full absolute right-0 z-50 transform transition-transform">
-                    <div className="p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface">
-                        <h3 className="font-headline font-bold text-lg text-on-surface">Screening Report</h3>
-                        <button onClick={() => setSelectedCandidateResult(null)} className="text-on-surface-variant hover:text-error p-1 rounded-full cursor-pointer">
-                            <span className="material-symbols-outlined">close</span>
-                        </button>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                        <div>
-                            <h2 className="text-xl font-bold text-on-surface">{selectedCandidateResult.candidate.name || 'Unknown'}</h2>
-                            <p className="text-sm text-on-surface-variant">{selectedCandidateResult.candidate.email}</p>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-surface-container-low rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden border border-outline-variant/30">
+                        <div className="p-6 border-b border-outline-variant/30 flex justify-between items-center bg-surface">
+                            <div>
+                                <h3 className="font-headline font-bold text-2xl text-on-surface">Screening Report</h3>
+                                <p className="text-sm text-on-surface-variant mt-1">Detailed AI analysis and candidate profile</p>
+                            </div>
+                            <button onClick={() => setSelectedCandidateResult(null)} className="text-on-surface-variant hover:text-error p-2 rounded-full cursor-pointer hover:bg-surface-variant transition-colors">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
                         </div>
                         
-                        {selectedJob ? (
-                            <>
-                                <div className="bg-surface p-4 rounded-xl border border-outline-variant/20 shadow-sm text-center">
-                                    <p className="text-xs font-bold uppercase text-on-surface-variant tracking-wider">Match Score</p>
-                                    <p className={`text-4xl font-headline font-bold mt-1 ${selectedCandidateResult.score >= 80 ? 'text-primary' : selectedCandidateResult.score >= 50 ? 'text-tertiary' : 'text-error'}`}>
-                                        {selectedCandidateResult.score}%
-                                    </p>
-                                    <p className="text-sm mt-2 text-on-surface-variant leading-relaxed">
-                                        {selectedCandidateResult.reason}
-                                    </p>
-                                </div>
-                                
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-surface">
+                            <div className="flex justify-between items-start">
                                 <div>
-                                    <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-3">Matched Skills</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedCandidateResult.matched_skills?.length > 0 ? (
-                                            selectedCandidateResult.matched_skills.map(s => (
-                                                <span key={s} className="px-2 py-1 bg-primary-container text-on-primary-container rounded flex items-center gap-1 text-sm">
-                                                    <span className="material-symbols-outlined text-[14px]">check</span> {s}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-sm text-on-surface-variant">None</span>
-                                        )}
-                                    </div>
+                                    <h2 className="text-3xl font-bold text-on-surface">{selectedCandidateResult.candidate.name || 'Unknown'}</h2>
+                                    <p className="text-on-surface-variant mt-1">{selectedCandidateResult.candidate.email} • {selectedCandidateResult.candidate.phone || 'No phone'}</p>
                                 </div>
-                                
                                 <div>
-                                    <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-3">Missing Skills</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedCandidateResult.missing_skills?.length > 0 ? (
-                                            selectedCandidateResult.missing_skills.map(s => (
-                                                <span key={s} className="px-2 py-1 bg-error-container text-on-error-container rounded flex items-center gap-1 text-sm">
-                                                    <span className="material-symbols-outlined text-[14px]">close</span> {s}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-sm text-on-surface-variant">None</span>
-                                        )}
-                                    </div>
+                                    <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider ${
+                                        selectedCandidateResult.candidate.status === 'accept' ? 'bg-primary-container text-primary' :
+                                        selectedCandidateResult.candidate.status === 'reject' ? 'bg-error-container text-error' :
+                                        'bg-surface-variant text-on-surface-variant'
+                                    }`}>
+                                        {selectedCandidateResult.candidate.status || 'pending'}
+                                    </span>
                                 </div>
-                                
-                                <div className="space-y-4">
-                                    <div>
-                                        <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-1">Education</h4>
-                                        <p className="text-sm text-on-surface">{selectedCandidateResult.education}</p>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-1">Experience</h4>
-                                        <p className="text-sm text-on-surface">{selectedCandidateResult.experience}</p>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="bg-surface-variant p-4 rounded-xl text-sm text-on-surface-variant italic">
-                                Please select a Job from the dropdown above to view Explainable AI screening insights for this candidate.
                             </div>
-                        )}
+                            
+                            {selectedJob ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-6">
+                                        <div className="bg-surface p-6 rounded-xl border border-outline-variant/20 shadow-sm text-center">
+                                            <p className="text-sm font-bold uppercase text-on-surface-variant tracking-wider">Match Score</p>
+                                            <p className={`text-6xl font-headline font-bold mt-2 ${selectedCandidateResult.score >= 80 ? 'text-primary' : selectedCandidateResult.score >= 50 ? 'text-tertiary' : 'text-error'}`}>
+                                                {selectedCandidateResult.score}%
+                                            </p>
+                                            <p className="text-sm mt-3 text-on-surface-variant leading-relaxed">
+                                                {selectedCandidateResult.reason}
+                                            </p>
+                                        </div>
+                                        
+                                        <div className="space-y-4 bg-surface-container-low p-6 rounded-xl border border-outline-variant/20">
+                                            <div>
+                                                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-1">Education</h4>
+                                                <p className="text-sm text-on-surface font-medium">{selectedCandidateResult.education}</p>
+                                            </div>
+                                            <div className="border-t border-outline-variant/30 pt-4">
+                                                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-1">Experience</h4>
+                                                <p className="text-sm text-on-surface font-medium">{selectedCandidateResult.experience}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-6">
+                                        <div className="bg-surface-container-low p-6 rounded-xl border border-outline-variant/20">
+                                            <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-4">Matched Skills</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedCandidateResult.matched_skills?.length > 0 ? (
+                                                    selectedCandidateResult.matched_skills.map(s => (
+                                                        <span key={s} className="px-3 py-1.5 bg-primary-container text-on-primary-container rounded-lg flex items-center gap-1.5 text-sm font-medium">
+                                                            <span className="material-symbols-outlined text-[16px]">check</span> {s}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-sm text-on-surface-variant italic">None found</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-surface-container-low p-6 rounded-xl border border-outline-variant/20">
+                                            <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-wider mb-4">Missing Skills</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedCandidateResult.missing_skills?.length > 0 ? (
+                                                    selectedCandidateResult.missing_skills.map(s => (
+                                                        <span key={s} className="px-3 py-1.5 bg-error-container text-on-error-container rounded-lg flex items-center gap-1.5 text-sm font-medium">
+                                                            <span className="material-symbols-outlined text-[16px]">close</span> {s}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-sm text-on-surface-variant italic">None</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-surface-variant p-6 rounded-xl text-center text-on-surface-variant">
+                                    <span className="material-symbols-outlined text-4xl mb-2 opacity-50">analytics</span>
+                                    <p className="text-lg">Please select a Job from the dropdown to view Explainable AI screening insights.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 border-t border-outline-variant/30 bg-surface flex justify-between items-center">
+                            <button 
+                                onClick={() => handleDeleteCandidate(selectedCandidateResult.candidate.id)}
+                                className="flex items-center gap-2 px-4 py-2.5 text-error hover:bg-error-container hover:text-on-error-container rounded-lg font-semibold transition-colors cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">delete</span>
+                                Delete Candidate
+                            </button>
+
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => handleStatusUpdate(selectedCandidateResult.candidate.id, 'reject')}
+                                    className="px-6 py-2.5 border border-error text-error rounded-lg font-bold hover:bg-error-container hover:text-on-error-container transition-colors cursor-pointer flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">thumb_down</span> Reject
+                                </button>
+                                <button 
+                                    onClick={() => handleStatusUpdate(selectedCandidateResult.candidate.id, 'accept')}
+                                    className="px-8 py-2.5 bg-primary text-on-primary rounded-lg font-bold hover:bg-primary/90 shadow-md transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">thumb_up</span> Accept
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

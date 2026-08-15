@@ -118,52 +118,61 @@ class Parser:
         self.consume() # consume SECTION_EXPERIENCE
         
         current_exp = {}
-        state = 0 # 0: expecting title, 1: expecting company, 2: expecting date range, 3: expecting desc
         
         while self.pos < len(self.tokens) and not self.current().type.startswith('SECTION_'):
             t = self.consume()
-            if t.type == 'SHORT_PHRASE':
-                if state == 3:
-                    # New job started
+            
+            # Boundary detection: Start a new block if we hit a second DATE_RANGE
+            # OR if we hit a SHORT_PHRASE and we already have both a job_title and company.
+            if (t.type == 'DATE_RANGE' and 'date_range' in current_exp) or \
+               (t.type == 'SHORT_PHRASE' and 'job_title' in current_exp and 'company' in current_exp):
+                if current_exp:
                     self.profile['experience'].append(current_exp)
-                    current_exp = {}
-                    state = 0
-                if state == 0:
+                current_exp = {}
+
+            # Dynamic field assignment based on presence rather than strict state
+            if t.type == 'SHORT_PHRASE':
+                if 'job_title' not in current_exp:
                     current_exp['job_title'] = t.value
-                    state = 1
-                elif state == 1:
+                elif 'company' not in current_exp:
                     current_exp['company'] = t.value
-                    state = 2
             elif t.type == 'DATE_RANGE':
                 current_exp['date_range'] = t.value
-                state = 3
             elif t.type == 'DESCRIPTION':
-                if state == 3:
-                    current_exp['description'] = (current_exp.get('description', '') + ' ' + t.value).strip()
-                # If we are not in state 3, maybe we are missing a date range. Ignore for simplicity.
+                current_exp['description'] = (current_exp.get('description', '') + ' ' + t.value).strip()
                 
-        # Flush
-        if current_exp and 'job_title' in current_exp:
+        # Flush the last entry
+        if current_exp and ('job_title' in current_exp or 'company' in current_exp):
             self.profile['experience'].append(current_exp)
 
     def parse_education(self):
         self.consume() # SECTION_EDUCATION
+        
         current_edu = {}
-        state = 0
+        
         while self.pos < len(self.tokens) and not self.current().type.startswith('SECTION_'):
             t = self.consume()
+            
+            # Boundary detection: Start a new block if we hit a second DATE
+            # OR if we hit a SHORT_PHRASE and we already have both a degree and institution.
+            if (t.type == 'DATE' and 'graduation_year' in current_edu) or \
+               (t.type == 'SHORT_PHRASE' and 'degree' in current_edu and 'institution' in current_edu):
+                if current_edu:
+                    self.profile['education'].append(current_edu)
+                current_edu = {}
+
+            # Dynamic field assignment
             if t.type == 'SHORT_PHRASE':
-                if state == 0:
+                if 'degree' not in current_edu:
                     current_edu['degree'] = t.value
-                    state = 1
-                elif state == 1:
+                elif 'institution' not in current_edu:
                     current_edu['institution'] = t.value
-                    state = 2
             elif t.type == 'DATE':
                 current_edu['graduation_year'] = t.value
-                self.profile['education'].append(current_edu)
-                current_edu = {}
-                state = 0
+                
+        # Flush the last entry
+        if current_edu and ('degree' in current_edu or 'institution' in current_edu):
+            self.profile['education'].append(current_edu)
                 
     def parse_skills(self):
         self.consume() # SECTION_SKILLS

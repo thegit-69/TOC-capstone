@@ -45,6 +45,7 @@ class CandidateBaseSchema(BaseModel):
     name: Optional[str]
     email: Optional[str]
     phone: Optional[str]
+    status: Optional[str] = "pending"
     class Config:
         from_attributes = True
 
@@ -52,6 +53,9 @@ class CandidateDetailSchema(CandidateBaseSchema):
     education: List[EducationSchema] = []
     experience: List[ExperienceSchema] = []
     skills: List[SkillSchema] = []
+
+class CandidateStatusUpdateSchema(BaseModel):
+    status: str
 
 class JobCreateSchema(BaseModel):
     title: str
@@ -139,6 +143,28 @@ def get_candidate(candidate_id: uuid.UUID, db: Session = Depends(get_db)):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
+
+@app.patch("/candidates/{candidate_id}/status")
+def update_candidate_status(candidate_id: uuid.UUID, status_update: CandidateStatusUpdateSchema, db: Session = Depends(get_db)):
+    candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if status_update.status not in ["pending", "accept", "reject"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    candidate.status = status_update.status
+    db.commit()
+    return {"message": f"Status updated to {candidate.status}"}
+
+@app.delete("/candidates/{candidate_id}")
+def delete_candidate(candidate_id: uuid.UUID, db: Session = Depends(get_db)):
+    candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    db.delete(candidate)
+    db.commit()
+    return {"message": "Candidate deleted successfully"}
 
 @app.post("/jobs", response_model=JobSchema)
 def add_job(job_in: JobCreateSchema, db: Session = Depends(get_db)):
