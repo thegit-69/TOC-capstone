@@ -140,7 +140,7 @@ class Parser:
             elif t.type == 'PHONE':
                 sanitized_phone = ''.join(c for c in t.value if c.isdigit() or c == '+')
                 self.profile['contact']['phone'] = sanitized_phone
-            elif t.type == 'SHORT_PHRASE' and 'name' not in self.profile['contact']:
+            elif t.type == 'SHORT_PHRASE' and not self.profile['contact'].get('name'):
                 # Assume first short phrase is name
                 self.profile['contact']['name'] = t.value
 
