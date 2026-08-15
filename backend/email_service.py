@@ -1,30 +1,26 @@
-import smtplib
 import os
-from email.message import EmailMessage
+import resend
 from typing import List, Optional
 
 def send_status_email(to_email: str, candidate_name: str, status: str, missing_skills: Optional[List[str]] = None):
     # Fetch credentials from environment
-    smtp_email = os.getenv("SMTP_EMAIL")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    sender_email = os.getenv("SMTP_EMAIL", "onboarding@resend.dev")
 
-    if not smtp_email or not smtp_password:
-        print("SMTP_EMAIL or SMTP_PASSWORD not set in .env. Email not sent.")
+    if not resend_api_key:
+        print("RESEND_API_KEY not set in .env. Email not sent.")
         return
 
     if not to_email:
         print(f"Candidate {candidate_name} has no email address. Email not sent.")
         return
 
-    msg = EmailMessage()
-    msg['From'] = f"TOC Hiring Team <{smtp_email}>"
-    msg['To'] = to_email
-    msg['Reply-To'] = "no-reply-toc@gmail.com"
+    resend.api_key = resend_api_key
+    subject = ""
+    content = ""
 
     if status == "accept":
-        msg['Subject'] = "Congratulations! You have been shortlisted"
+        subject = "Congratulations! You have been shortlisted"
         content = f"""
         <html>
         <body>
@@ -38,7 +34,7 @@ def send_status_email(to_email: str, candidate_name: str, status: str, missing_s
         </html>
         """
     elif status == "reject":
-        msg['Subject'] = "Update regarding your application"
+        subject = "Update regarding your application"
         
         feedback_html = ""
         if missing_skills and len(missing_skills) > 0:
@@ -71,14 +67,16 @@ def send_status_email(to_email: str, candidate_name: str, status: str, missing_s
         # Ignore other statuses like 'pending'
         return
 
-    msg.set_content("Please enable HTML to view this message.")
-    msg.add_alternative(content, subtype='html')
+    params: resend.Emails.SendParams = {
+        "from": f"TOC Hiring Team <{sender_email}>",
+        "to": [to_email],
+        "subject": subject,
+        "html": content,
+        "reply_to": "no-reply-toc@gmail.com"
+    }
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_email, smtp_password)
-            server.send_message(msg)
-            print(f"Email sent successfully to {to_email}")
+        email_response = resend.Emails.send(params)
+        print(f"Email sent successfully to {to_email}. Resend ID: {email_response.get('id', 'unknown')}")
     except Exception as e:
         print(f"Failed to send email to {to_email}: {e}")
