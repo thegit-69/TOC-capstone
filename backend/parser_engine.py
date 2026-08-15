@@ -111,7 +111,8 @@ class Parser:
             if t.type == 'EMAIL':
                 self.profile['contact']['email'] = t.value
             elif t.type == 'PHONE':
-                self.profile['contact']['phone'] = t.value
+                sanitized_phone = ''.join(c for c in t.value if c.isdigit() or c == '+')
+                self.profile['contact']['phone'] = sanitized_phone
             elif t.type == 'SHORT_PHRASE' and 'name' not in self.profile['contact']:
                 # Assume first short phrase is name
                 self.profile['contact']['name'] = t.value

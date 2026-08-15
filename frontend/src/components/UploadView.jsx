@@ -1,34 +1,56 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import SyntaxTreeAnimation from './SyntaxTreeAnimation';
 
 export default function UploadView() {
     const [status, setStatus] = useState('idle'); // 'idle' | 'processing' | 'complete'
+    const [step, setStep] = useState(0); // 0: idle, 1: lexical, 2: syntax, 3: semantic, 4: done
     const [uploads, setUploads] = useState([]);
+    const [lastParsedData, setLastParsedData] = useState(null);
     const fileInputRef = useRef(null);
+    const jsonContainerRef = useRef(null);
 
     const handleFileUpload = async (file) => {
         if (!file) return;
         
         setStatus('processing');
+        setStep(1);
+        setLastParsedData(null);
         
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            // Send to FastAPI backend
+            // Lexical Analysis (fake delay)
+            await new Promise(r => setTimeout(r, 1500));
+            
+            setStep(2);
+            // Send to FastAPI backend during syntax parsing phase
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-            const response = await fetch(`${apiUrl}/upload`, {
+            const fetchPromise = fetch(`${apiUrl}/upload`, {
                 method: 'POST',
                 body: formData,
             });
 
+            // Ensure syntax phase lasts at least 1.5s for realism
+            const [response] = await Promise.all([
+                fetchPromise,
+                new Promise(r => setTimeout(r, 1500))
+            ]);
+
             if (response.ok) {
                 const data = await response.json();
+                
+                setStep(3);
+                setLastParsedData(data.parsed_profile);
+                
+                // Allow user to see Semantic Output forming before concluding
+                await new Promise(r => setTimeout(r, 2000));
+                
                 setUploads(prev => [
                     { 
                         name: file.name, 
                         status: 'Success', 
-                        skillsCount: data.skills ? data.skills.length : 0 
+                        skillsCount: data.parsed_profile?.skills ? data.parsed_profile.skills.length : 0 
                     },
                     ...prev
                 ]);
@@ -54,6 +76,7 @@ export default function UploadView() {
             ]);
         } finally {
             setStatus('complete');
+            setStep(4);
         }
     };
 
@@ -71,6 +94,12 @@ export default function UploadView() {
             handleFileUpload(file);
         }
     };
+
+    useEffect(() => {
+        if (jsonContainerRef.current) {
+            jsonContainerRef.current.scrollTop = jsonContainerRef.current.scrollHeight;
+        }
+    }, [lastParsedData, status]);
 
     const triggerFileInput = () => {
         if (fileInputRef.current) {
@@ -166,7 +195,7 @@ export default function UploadView() {
                             <p className="text-on-surface-variant font-body text-sm">Real-time breakdown of structural extraction.</p>
                         </div>
                         {status === 'complete' && (
-                            <button onClick={() => setStatus('idle')} className="px-4 py-2 bg-primary text-on-primary rounded-lg font-bold text-sm hover:opacity-90 cursor-pointer">
+                            <button onClick={() => { setStatus('idle'); setStep(0); setLastParsedData(null); }} className="px-4 py-2 bg-primary text-on-primary rounded-lg font-bold text-sm hover:opacity-90 cursor-pointer">
                                 Clear Visualization
                             </button>
                         )}
@@ -190,14 +219,14 @@ export default function UploadView() {
                                     <svg fill="none" height="150" viewBox="0 0 400 150" width="400" xmlns="http://www.w3.org/2000/svg">
                                         <g id="stream">
                                             <rect fill="#F3F4F6" height="30" rx="4" width="80" x="0" y="60">
-                                                {status === 'processing' && <animate attributeName="x" dur="3s" from="-100" repeatCount="indefinite" to="400"></animate>}
+                                                {step === 1 && <animate attributeName="x" dur="1.5s" from="-100" repeatCount="indefinite" to="400"></animate>}
                                             </rect>
                                             <text fill="#6B7280" fontFamily="monospace" fontSize="12" x="10" y="80">Python</text>
                                             <rect fill="#6366f1" fillOpacity="0.1" height="30" rx="4" stroke="#6366f1" strokeWidth="1" width="80" x="150" y="60">
-                                                {status === 'processing' && (
+                                                {step === 1 && (
                                                     <>
-                                                        <animate attributeName="x" dur="3s" from="150" repeatCount="indefinite" to="650"></animate>
-                                                        <animate attributeName="opacity" dur="3s" repeatCount="indefinite" values="0;1;1;0"></animate>
+                                                        <animate attributeName="x" dur="1.5s" from="150" repeatCount="indefinite" to="650"></animate>
+                                                        <animate attributeName="opacity" dur="1.5s" repeatCount="indefinite" values="0;1;1;0"></animate>
                                                     </>
                                                 )}
                                             </rect>
@@ -210,28 +239,28 @@ export default function UploadView() {
                         </div>
                         
                         {/* Card 2: Syntax Parsing */}
-                        <div className="relative z-10 flex gap-6">
+                        <div className={`relative z-10 flex gap-6 ${step === 2 ? 'opacity-100' : (step === 0 || step >= 3 ? 'opacity-100' : 'opacity-40')} transition-opacity duration-500`}>
                             <div className={`w-12 h-12 shrink-0 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm border border-primary-fixed/20 shadow-[0_0_15px_var(--color-primary)_inset]`}>
-                                <span className={`material-symbols-outlined text-[20px] ${status === 'processing' ? 'animate-spin' : ''}`} style={{animationDuration: '3s'}}>settings</span>
+                                <span className={`material-symbols-outlined text-[20px] ${step === 2 ? 'animate-spin' : ''}`} style={{animationDuration: '3s'}}>settings</span>
                             </div>
                             <div className="flex-1 bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/20 flex flex-col gap-4 ring-1 ring-primary/20">
                                 <div className="flex items-center justify-between">
                                     <h3 className="font-headline font-semibold text-lg text-on-surface">Syntax Parsing</h3>
                                     <span className="text-xs font-mono px-2 py-1 bg-primary/10 text-primary rounded-md flex items-center gap-1">
-                                        {status === 'processing' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>}
+                                        {step === 2 && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>}
                                         CFG Rule Engine
                                     </span>
                                 </div>
                                 <div className="h-40 w-full rounded-lg overflow-hidden relative border border-outline-variant/30 bg-surface">
                                     {/* ThreeJS Animation runs when processing */}
-                                    <SyntaxTreeAnimation active={status === 'processing'} />
+                                    <SyntaxTreeAnimation active={step === 2} />
                                 </div>
                                 <p className="text-sm text-on-surface-variant">Applying Context-Free Grammar rules to construct the Abstract Syntax Tree.</p>
                             </div>
                         </div>
                         
                         {/* Card 3: Semantic Output */}
-                        <div className={`relative z-10 flex gap-6 ${status === 'processing' ? 'opacity-70' : 'opacity-100'} transition-opacity`}>
+                        <div className={`relative z-10 flex gap-6 ${step >= 3 || step === 0 ? 'opacity-100' : 'opacity-40'} transition-opacity duration-500`}>
                             <div className="w-12 h-12 shrink-0 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center shadow-sm border border-outline-variant/30">
                                 <span className="material-symbols-outlined text-[20px]">data_object</span>
                             </div>
@@ -240,21 +269,17 @@ export default function UploadView() {
                                     <h3 className="font-mono font-semibold text-sm text-[#d4d4d4]">Semantic Output</h3>
                                     <span className="text-[10px] font-mono text-[#858585]">JSON Construct</span>
                                 </div>
-                                <div className="h-32 overflow-hidden relative w-full text-xs font-mono leading-relaxed">
-                                    {/* Fades */}
-                                    <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-[#1e1e1e] to-transparent z-10"></div>
-                                    <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-[#1e1e1e] to-transparent z-10"></div>
-                                    <div className={`${status === 'processing' ? 'code-scroll' : ''} flex flex-col pt-4`}>
-                                        <pre className="text-[#d4d4d4] m-0"><span className="text-[#858585]">// Constructing Entity Node</span><br/>
-{`{
-  "`}<span className="text-[#9cdcfe]">candidate</span>{`": "`}<span className="text-[#ce9178]">John Doe</span>{`",
-  "`}<span className="text-[#9cdcfe]">contact</span>{`": {
-    "`}<span className="text-[#9cdcfe]">email</span>{`": "`}<span className="text-[#ce9178]">j.doe@example.com</span>{`"
-  },
-  "`}<span className="text-[#9cdcfe]">skills</span>{`": [
-    "`}<span className="text-[#ce9178]">Python</span>{`", "`}<span className="text-[#ce9178]">React</span>{`"
-  ]
-}`}</pre>
+                                <div className="h-40 overflow-y-auto relative w-full text-xs font-mono leading-relaxed custom-scrollbar" ref={jsonContainerRef}>
+                                    <div className={`flex flex-col p-4`}>
+                                        <pre className="text-[#d4d4d4] m-0 whitespace-pre-wrap break-all">
+{lastParsedData ? JSON.stringify(lastParsedData, null, 2) : 
+`// Awaiting document...
+{
+  "candidate": "...",
+  "contact": {},
+  "skills": []
+}`}
+                                        </pre>
                                     </div>
                                 </div>
                             </div>

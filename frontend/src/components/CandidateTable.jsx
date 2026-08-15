@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export default function CandidateTable() {
+    const location = useLocation();
     const [candidates, setCandidates] = useState([]);
     const [jobs, setJobs] = useState([]);
-    const [selectedJob, setSelectedJob] = useState('');
+    const [selectedJob, setSelectedJob] = useState(location.state?.jobId || '');
     const [loading, setLoading] = useState(true);
     const [selectedCandidateResult, setSelectedCandidateResult] = useState(null);
 

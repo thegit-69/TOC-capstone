@@ -19,8 +19,9 @@ def send_status_email(to_email: str, candidate_name: str, status: str, missing_s
         return
 
     msg = EmailMessage()
-    msg['From'] = smtp_email
+    msg['From'] = f"TOC Hiring Team <{smtp_email}>"
     msg['To'] = to_email
+    msg['Reply-To'] = "no-reply-toc@gmail.com"
 
     if status == "accept":
         msg['Subject'] = "Congratulations! You have been shortlisted"

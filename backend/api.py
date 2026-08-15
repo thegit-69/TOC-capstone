@@ -225,13 +225,13 @@ def compute_education_score(candidate_edu, job_edu):
     job_edu = job_edu.lower()
     
     # Simple heuristic
-    has_bachelors = any(e.degree and ('b.s' in e.degree.lower() or 'bachelor' in e.degree.lower() or 'b.a' in e.degree.lower() or 'b.tech' in e.degree.lower()) for e in candidate_edu)
-    has_masters = any(e.degree and ('m.s' in e.degree.lower() or 'master' in e.degree.lower() or 'mba' in e.degree.lower() or 'm.tech' in e.degree.lower()) for e in candidate_edu)
+    has_bachelors = any(e.degree and ('b.s' in e.degree.lower() or 'bachelor' in e.degree.lower() or 'b.a' in e.degree.lower() or 'b.tech' in e.degree.lower() or 'b.e' in e.degree.lower()) for e in candidate_edu)
+    has_masters = any(e.degree and ('m.s' in e.degree.lower() or 'master' in e.degree.lower() or 'mba' in e.degree.lower() or 'm.tech' in e.degree.lower() or 'm.e' in e.degree.lower()) for e in candidate_edu)
     has_phd = any(e.degree and ('ph.d' in e.degree.lower() or 'phd' in e.degree.lower()) for e in candidate_edu)
     
     if 'phd' in job_edu and not has_phd: return 0.2
     if ('master' in job_edu or 'm.tech' in job_edu) and not (has_masters or has_phd): return 0.5
-    if ('bachelor' in job_edu or 'b.tech' in job_edu) and not (has_bachelors or has_masters or has_phd): return 0.3
+    if ('bachelor' in job_edu or 'b.tech' in job_edu or 'b.e' in job_edu) and not (has_bachelors or has_masters or has_phd): return 0.3
     
     return 1.0
 
