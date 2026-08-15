@@ -12,9 +12,17 @@ from extractor import extract_text_from_pdf
 from parser_engine import parse_resume_text
 from db_operations import save_profile_to_db
 from email_service import send_status_email
+import hashlib
+
+def get_password_hash(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # Pydantic schemas for responses
 from pydantic import BaseModel
+
+class LoginSchema(BaseModel):
+    username: str
+    password: str
 
 class EducationSchema(BaseModel):
     id: uuid.UUID
@@ -97,6 +105,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_event():
+    models.Base.metadata.create_all(bind=engine)
+    db = next(get_db())
+    admin_exists = db.query(models.Account).filter(models.Account.username == "admin").first()
+    if not admin_exists:
+        admin_acc = models.Account(
+            username="admin",
+            password_hash=get_password_hash("admin")
+        )
+        db.add(admin_acc)
+        db.commit()
+
+@app.post("/login")
+def login(creds: LoginSchema, db: Session = Depends(get_db)):
+    account = db.query(models.Account).filter(models.Account.username == creds.username).first()
+    if not account or account.password_hash != get_password_hash(creds.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    return {"success": True, "username": account.username}
 
 from datetime import datetime
 from db_operations import save_profile_to_db, create_job, get_jobs, get_job_by_id

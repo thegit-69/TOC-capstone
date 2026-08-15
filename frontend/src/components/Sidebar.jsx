@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
-export default function Sidebar() {
+export default function Sidebar({ onLogout }) {
     const navigate = useNavigate();
 
     return (
@@ -58,15 +58,28 @@ export default function Sidebar() {
                     <span className="material-symbols-outlined text-lg">cloud_upload</span>
                     <span className="font-label text-sm">Upload Resumes</span>
                 </NavLink>
+
+                <NavLink
+                    to="/scoring"
+                    className={({ isActive }) =>
+                        `flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 ease-in-out cursor-pointer active:opacity-80 ${isActive ? 'bg-primary-container text-on-primary-container font-bold' : 'text-on-surface-variant hover:bg-surface-variant'}`
+                    }
+                >
+                    <span className="material-symbols-outlined text-lg">query_stats</span>
+                    <span className="font-label text-sm">Scoring Engine</span>
+                </NavLink>
             </div>
 
             {/* CTA & Footer */}
             <div className="pt-4 border-t border-outline-variant/30 space-y-4">
                 <div className="space-y-1">
-                    <a className="flex items-center space-x-3 px-3 py-2 text-error hover:bg-error-container/50 rounded-lg transition-all duration-200 cursor-pointer active:opacity-80" href="#">
+                    <button 
+                        onClick={onLogout}
+                        className="w-full flex items-center space-x-3 px-3 py-2 text-error hover:bg-error-container/50 rounded-lg transition-all duration-200 cursor-pointer active:opacity-80"
+                    >
                         <span className="material-symbols-outlined text-lg">logout</span>
                         <span className="font-label text-sm">Sign Out</span>
-                    </a>
+                    </button>
                 </div>
             </div>
         </nav>

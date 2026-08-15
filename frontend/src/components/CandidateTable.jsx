@@ -8,6 +8,9 @@ export default function CandidateTable() {
     const [selectedJob, setSelectedJob] = useState(location.state?.jobId || '');
     const [loading, setLoading] = useState(true);
     const [selectedCandidateResult, setSelectedCandidateResult] = useState(null);
+    const [showJobScoringModal, setShowJobScoringModal] = useState(false);
+    
+    const selectedJobObj = jobs.find(j => j.id === selectedJob);
 
     useEffect(() => {
         const fetchJobs = async () => {
@@ -165,18 +168,29 @@ export default function CandidateTable() {
                             <p className="text-on-surface-variant mt-1">Review and manage recently processed resumes.</p>
                         </div>
                         
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-semibold text-on-surface-variant">Screen against Role:</label>
-                            <select 
-                                value={selectedJob} 
-                                onChange={(e) => setSelectedJob(e.target.value)}
-                                className="border border-outline-variant rounded-md p-2 text-sm bg-surface"
-                            >
-                                <option value="">-- View All Candidates --</option>
-                                {jobs.map(j => (
-                                    <option key={j.id} value={j.id}>{j.title}</option>
-                                ))}
-                            </select>
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-4">
+                                <label className="text-sm font-semibold text-on-surface-variant">Screen against Role:</label>
+                                <select 
+                                    value={selectedJob} 
+                                    onChange={(e) => setSelectedJob(e.target.value)}
+                                    className="border border-outline-variant rounded-md p-2 text-sm bg-surface cursor-pointer focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                >
+                                    <option value="">-- View All Candidates --</option>
+                                    {jobs.map(j => (
+                                        <option key={j.id} value={j.id}>{j.title}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedJobObj && (
+                                <button 
+                                    onClick={() => setShowJobScoringModal(true)}
+                                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">help</span>
+                                    How is this scored?
+                                </button>
+                            )}
                         </div>
                     </div>
                     
@@ -347,6 +361,67 @@ export default function CandidateTable() {
                                 >
                                     <span className="material-symbols-outlined text-[18px]">thumb_up</span> Accept
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Job Scoring Modal */}
+            {showJobScoringModal && selectedJobObj && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+                    <div 
+                        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                        onClick={() => setShowJobScoringModal(false)}
+                    ></div>
+                    
+                    <div className="relative bg-surface rounded-2xl shadow-xl border border-outline-variant/30 w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low/50">
+                            <h3 className="font-headline font-bold text-xl text-on-surface">
+                                Scoring Breakdown
+                            </h3>
+                            <button 
+                                onClick={() => setShowJobScoringModal(false)}
+                                className="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        
+                        {/* Content */}
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Target Skills (Jaccard Union)</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedJobObj.skills && selectedJobObj.skills.length > 0 ? (
+                                        selectedJobObj.skills.map((s, idx) => (
+                                            <span key={idx} className="bg-primary-container text-on-primary-container px-2 py-1 rounded-md text-sm">
+                                                {s}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-sm text-on-surface-variant">No specific skills required.</span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-on-surface-variant mt-2">
+                                    Base score is calculated by: (Candidate's matching skills) / (Target Skills + Candidate's unrelated skills).
+                                </p>
+                            </div>
+                            
+                            <div className="border-t border-outline-variant/30 pt-4">
+                                <h4 className="text-sm font-bold text-tertiary uppercase tracking-wider mb-2">Education Multiplier Penalty</h4>
+                                <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
+                                    <p className="text-sm text-on-surface font-semibold mb-1">
+                                        Required: {selectedJobObj.education_level || "Any / None"}
+                                    </p>
+                                    <p className="text-xs text-on-surface-variant">
+                                        {selectedJobObj.education_level?.includes('PhD') ? "If candidate lacks a PhD, score is multiplied by 0.2x (-80%)." :
+                                         selectedJobObj.education_level?.includes('M.Tech') ? "If candidate lacks a Master's degree, score is multiplied by 0.5x (-50%)." :
+                                         selectedJobObj.education_level?.includes('B.Tech') ? "If candidate lacks a Bachelor's degree, score is multiplied by 0.3x (-70%)." :
+                                         "No education penalty will be applied for this role."}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
