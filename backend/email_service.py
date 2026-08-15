@@ -5,7 +5,7 @@ from typing import List, Optional
 def send_status_email(to_email: str, candidate_name: str, status: str, missing_skills: Optional[List[str]] = None):
     # Fetch credentials from environment
     resend_api_key = os.getenv("RESEND_API_KEY")
-    sender_email = os.getenv("SMTP_EMAIL", "onboarding@resend.dev")
+    sender_email = os.getenv("SMTP_EMAIL")
 
     if not resend_api_key:
         print("RESEND_API_KEY not set in .env. Email not sent.")
