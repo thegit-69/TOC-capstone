@@ -70,12 +70,15 @@ export default function CandidateTable() {
         }
     };
 
-    const handleStatusUpdate = async (id, status) => {
+    const handleStatusUpdate = async (id, status, missingSkills = []) => {
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/candidates/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status })
+                body: JSON.stringify({ 
+                    status,
+                    missing_skills: missingSkills
+                })
             });
             if (response.ok) {
                 setCandidates(prev => prev.map(item => {
@@ -331,7 +334,7 @@ export default function CandidateTable() {
 
                             <div className="flex gap-4">
                                 <button 
-                                    onClick={() => handleStatusUpdate(selectedCandidateResult.candidate.id, 'reject')}
+                                    onClick={() => handleStatusUpdate(selectedCandidateResult.candidate.id, 'reject', selectedCandidateResult.missing_skills)}
                                     className="px-6 py-2.5 border border-error text-error rounded-lg font-bold hover:bg-error-container hover:text-on-error-container transition-colors cursor-pointer flex items-center gap-2"
                                 >
                                     <span className="material-symbols-outlined text-[18px]">thumb_down</span> Reject

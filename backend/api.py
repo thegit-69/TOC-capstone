@@ -2,7 +2,7 @@ import os
 import shutil
 import uuid
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from database import engine, get_db
 from extractor import extract_text_from_pdf
 from parser_engine import parse_resume_text
 from db_operations import save_profile_to_db
+from email_service import send_status_email
 
 # Pydantic schemas for responses
 from pydantic import BaseModel
@@ -56,6 +57,7 @@ class CandidateDetailSchema(CandidateBaseSchema):
 
 class CandidateStatusUpdateSchema(BaseModel):
     status: str
+    missing_skills: Optional[List[str]] = []
 
 class JobCreateSchema(BaseModel):
     title: str
@@ -145,7 +147,7 @@ def get_candidate(candidate_id: uuid.UUID, db: Session = Depends(get_db)):
     return candidate
 
 @app.patch("/candidates/{candidate_id}/status")
-def update_candidate_status(candidate_id: uuid.UUID, status_update: CandidateStatusUpdateSchema, db: Session = Depends(get_db)):
+def update_candidate_status(candidate_id: uuid.UUID, status_update: CandidateStatusUpdateSchema, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -154,6 +156,17 @@ def update_candidate_status(candidate_id: uuid.UUID, status_update: CandidateSta
     
     candidate.status = status_update.status
     db.commit()
+
+    # Queue the email
+    if candidate.status in ["accept", "reject"] and candidate.email:
+        background_tasks.add_task(
+            send_status_email,
+            to_email=candidate.email,
+            candidate_name=candidate.name or "Candidate",
+            status=candidate.status,
+            missing_skills=status_update.missing_skills
+        )
+
     return {"message": f"Status updated to {candidate.status}"}
 
 @app.delete("/candidates/{candidate_id}")

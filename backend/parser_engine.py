@@ -27,6 +27,8 @@ class Lexer:
     
     def tokenize_line(self, line: str) -> Token:
         line = line.strip()
+        # Remove common bullet points and following whitespace
+        line = re.sub(r'^[-*•+➢]\s*', '', line)
         if not line:
             return Token('EMPTY', '')
         
