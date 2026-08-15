@@ -3,6 +3,33 @@ import json
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
+# --- Text Sanitization Pipeline ---
+def clean_resume_text(raw_text: str) -> str:
+    # 1. Replace unusual bullet points with newlines
+    text = re.sub(r'[▪•*➢+]', '\n', raw_text)
+    
+    # 2. Merge fragmented words (lowercase followed by newline then lowercase)
+    text = re.sub(r'([a-z])\s*\n\s*([a-z])', r'\1 \2', text)
+    
+    # 3. Consolidate first 3-4 lines into a single Name string if they are short
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    name_parts = []
+    
+    for i in range(min(4, len(lines))):
+        line = lines[i]
+        # If line is short and has no weird punctuation, it's likely part of the name
+        if len(line.split()) <= 2 and not re.search(r'[@\d:]', line):
+            name_parts.append(line)
+        else:
+            break
+            
+    if name_parts:
+        # Rebuild text with merged name
+        full_name = " ".join(name_parts)
+        text = full_name + "\n" + "\n".join(lines[len(name_parts):])
+        
+    return text
+
 # --- Lexical Analyzer (Tokenizer) ---
 # In a real-world scenario, this would use NLP (e.g., spaCy) for NER.
 # For this academic project, we use regex and heuristics to tokenize lines.
@@ -20,9 +47,9 @@ class Lexer:
             'PHONE': r'\b\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}\b',
             'DATE_RANGE': r'\b(19|20)\d{2}\s*-\s*(19|20)\d{2}\b',
             'DATE': r'\b(19|20)\d{2}\b',
-            'SECTION_EXPERIENCE': r'^EXPERIENCE$',
-            'SECTION_EDUCATION': r'^EDUCATION$',
-            'SECTION_SKILLS': r'^SKILLS$'
+            'SECTION_EXPERIENCE': r'^(PROJECTS|WORK HISTORY|EMPLOYMENT|EXPERIENCE)$',
+            'SECTION_EDUCATION': r'^(ACADEMICS|EDUCATION|QUALIFICATIONS)$',
+            'SECTION_SKILLS': r'^(SKILLS|TECHNOLOGIES|CORE COMPETENCIES)$'
         }
     
     def tokenize_line(self, line: str) -> Token:
@@ -72,10 +99,10 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.profile = {
-            "contact": {},
-            "experience": [],
-            "education": [],
-            "skills": []
+            'contact': {'name': '', 'email': '', 'phone': ''},
+            'experience': [],
+            'education': [],
+            'skills': []
         }
 
     def current(self):
@@ -185,8 +212,9 @@ class Parser:
                 self.profile['skills'].append(t.value)
 
 def parse_resume_text(text: str) -> Dict[str, Any]:
+    cleaned_text = clean_resume_text(text)
     lexer = Lexer()
-    tokens = lexer.tokenize(text)
+    tokens = lexer.tokenize(cleaned_text)
     parser = Parser(tokens)
     return parser.parse()
 
